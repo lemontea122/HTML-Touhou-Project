@@ -10,9 +10,15 @@
 </head>
 <body style="background-color: #0f172a; background-image: url(719037.jpg); background-size: cover; color: #e2e8f0; padding: 30px; font-family: Arial; transition: filter 0.4s;">
 	
-	<div style="max-width: 1000px; margin: 20px auto; padding: 0 30px; padding-top: 20px; padding-bottom: 20px; border-left: 4px solid #cbd5e1; border-right: 4px solid #cbd5e1; border-bottom: 4px solid #cbd5e1; border-top: 4px solid #cbd5e1; background-color: #0f172a;">
+	<div style="max-width: 1000px; margin: 0 auto; padding: 0 30px; padding-top: 20px; padding-bottom: 20px; border-left: 4px solid #cbd5e1; border-right: 4px solid #cbd5e1; border-bottom: 4px solid #cbd5e1; border-top: 4px solid #cbd5e1; background-color: #0f172a;">
 
-		<p><a href="index.html" style="color: #cbd5e1;"><b>← Вернуться назад</b></a></p>
+		<p>
+		<a href="index.html" style="color: #cbd5e1;">← Вернуться на главную</a>
+		<span style="float: right;">
+		<a href="scarlet_sisters.html" style="color: #cbd5e1; margin-right: 15px;">← Предыдущий</a>
+		<a href="reimu.html" style="color: #cbd5e1;">Следующий →</a>
+    		</span>
+		</p>
 
 		<hr style="border-color: #334155; margin: 25px 0;">
 
@@ -26,7 +32,7 @@
 
 		
 			<td id="rightCell" style="width: 50%; vertical-align: middle; text-align: center; transition: opacity 0.4s ease;">
-				<div style="display: inline-block; background-color: #1e293b; border: 2px solid #94a3b8; border-radius: 10px; padding: 25px 40px; text-align: center;">
+				<div style="display: inline-block; background-color: #1e293b; border: 2px solid #94a3b8; padding: 25px 40px; text-align: center;">
 					
 					<div id="clock" style="font-size: 36px; font-weight: bold; color: #cbd5e1; font-family: monospace;">00:00:00.00</div>
 					
@@ -93,6 +99,11 @@
 	let lastFrameTime = Date.now();
 	let elapsed = 0;
 	let isSwapped = false;
+	
+	let animationFrameId = null;
+	let hueStartTime = null;
+	let invertAmount = 0;
+	let transitionProgress = 0;
 
 	function updateClock() {
 		let now = Date.now();
@@ -121,13 +132,31 @@
 
 	setInterval(updateClock, 30);
 
+	function animateHue(timestamp) {
+		let body = document.getElementById('pageBody');
+		let img = document.getElementById('sakuyaImg');
+
+		if (transitionProgress === 0) {
+			body.style.filter = `invert(${invertAmount})`;
+			img.style.filter = `invert(${invertAmount})`;
+			animationFrameId = requestAnimationFrame(animateHue);
+			return;
+		}
+
+		if (!hueStartTime) hueStartTime = timestamp;
+		let elapsedSeconds = (timestamp - hueStartTime) / 1000;
+		let currentHue = (elapsedSeconds * 360) % 360;
+
+		body.style.filter = `invert(${invertAmount}) hue-rotate(${currentHue}deg)`;
+		img.style.filter = `invert(${invertAmount}) hue-rotate(${currentHue}deg)`;
+
+		animationFrameId = requestAnimationFrame(animateHue);
+	}
+
 	function toggleTime() {
 		let body = document.getElementById('pageBody');
 		let btn = document.getElementById('timeBtn');
 		let img = document.getElementById('sakuyaImg');
-
-		body.style.transition = "filter 2s ease-in-out";
-		img.style.transition = "filter 2s ease-in-out";
 
 		let sound = document.getElementById('timeStopSound');
 		let resumeSound = document.getElementById('timeResumeSound');
@@ -146,8 +175,25 @@
 
 			isStopped = true;
 			targetSpeed = 0;
-			body.style.filter = "invert(1) hue-rotate(180deg)";
-			img.style.filter = "invert(1) hue-rotate(180deg)";
+			hueStartTime = null;
+			transitionProgress = 1;
+
+			if (animationFrameId) cancelAnimationFrame(animationFrameId);
+			animateHue();
+
+			let startTime = Date.now();
+			function fadeIn() {
+				let progress = (Date.now() - startTime) / 2000;
+				invertAmount = Math.min(1, progress);
+				
+				if (progress < 1) {
+					requestAnimationFrame(fadeIn);
+				} else {
+					transitionProgress = 0;
+				}
+			}
+			fadeIn();
+
 			btn.innerText = "Возобновить время";
 
 		} else {
@@ -162,8 +208,26 @@
 
 			isStopped = false;
 			targetSpeed = 1;
-			body.style.filter = "none";
-			img.style.filter = "none";
+			hueStartTime = null;
+			transitionProgress = 1;
+
+			let startTime = Date.now();
+			function fadeOut() {
+				let progress = (Date.now() - startTime) / 2000;
+				invertAmount = Math.max(0, 1 - progress);
+				
+				if (progress < 1) {
+					requestAnimationFrame(fadeOut);
+				} else {
+					transitionProgress = 0;
+					body.style.filter = "none";
+					img.style.filter = "none";
+					if (animationFrameId) cancelAnimationFrame(animationFrameId);
+					hueStartTime = null;
+				}
+			}
+			fadeOut();
+
 			btn.innerText = "Остановить время";
 		}
 	}
@@ -189,8 +253,7 @@
 		rightCell.style.transition = "opacity 0.1s ease";
 
 		let flashFilter = isStopped ? "none" : "invert(1) hue-rotate(180deg)";
-		let normalFilter = isStopped ? "invert(1) hue-rotate(180deg)" : "none";
-
+		
 		body.style.filter = flashFilter;
 		img.style.filter = flashFilter;
 		leftCell.style.opacity = "0";
@@ -204,8 +267,12 @@
 			}
 			isSwapped = !isSwapped;
 
-			body.style.filter = normalFilter;
-			img.style.filter = normalFilter;
+			if (isStopped) {
+				animateHue();
+			} else {
+				body.style.filter = "none";
+				img.style.filter = "none";
+			}
 			leftCell.style.opacity = "1";
 			rightCell.style.opacity = "1";
 		}, 120);
